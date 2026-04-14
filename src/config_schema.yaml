@@ -83,6 +83,14 @@ model_options:
       value: null
       type: str
       description: "The path to the local Whisper model. If not specified, the default model will be downloaded."
+    beam_size:
+      value: 1
+      type: int
+      description: "Number of beams for beam search decoding. 1 = greedy (fastest, negligible quality difference at temperature=0). Higher values are slower but may improve accuracy."
+    hotwords:
+      value: []
+      type: list
+      description: "List of hotwords to boost during transcription (e.g. proper nouns, technical terms)."
 
 # Configuration options for activation and recording
 recording_options:

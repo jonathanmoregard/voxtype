@@ -64,12 +64,14 @@ def transcribe_local(audio_data, local_model=None):
     # Convert int16 to float32
     audio_data_float = audio_data.astype(np.float32) / 32768.0
 
+    local_opts = model_options['local']
     response = local_model.transcribe(audio=audio_data_float,
                                       language=model_options['common']['language'],
                                       initial_prompt=model_options['common']['initial_prompt'],
-                                      condition_on_previous_text=model_options['local']['condition_on_previous_text'],
+                                      condition_on_previous_text=local_opts['condition_on_previous_text'],
                                       temperature=model_options['common']['temperature'],
-                                      vad_filter=model_options['local']['vad_filter'],)
+                                      vad_filter=local_opts['vad_filter'],
+                                      beam_size=local_opts.get('beam_size', 1),)
     return ''.join([segment.text for segment in list(response[0])])
 
 def transcribe_local_stream(audio_data, local_model=None, initial_prompt='', hotwords=None):
@@ -82,13 +84,15 @@ def transcribe_local_stream(audio_data, local_model=None, initial_prompt='', hot
 
     audio_float = audio_data.astype(np.float32) / 32768.0
 
+    local_opts = model_options['local']
     segments, _ = local_model.transcribe(
         audio=audio_float,
         language=model_options['common']['language'],
         initial_prompt=initial_prompt,
-        condition_on_previous_text=model_options['local']['condition_on_previous_text'],
+        condition_on_previous_text=local_opts['condition_on_previous_text'],
         temperature=model_options['common']['temperature'],
-        vad_filter=model_options['local']['vad_filter'],
+        vad_filter=local_opts['vad_filter'],
+        beam_size=local_opts.get('beam_size', 1),
         hotwords=hotwords or [],
     )
 

@@ -1,15 +1,16 @@
 model_options:
   use_api: false
   common:
-    language: null          # auto-detect (handles Swedish + English)
+    language: en
     temperature: 0.0
     initial_prompt: "Clean transcription without filler words."
   local:
-    model: small            # good accuracy/speed balance; upgrade to medium if needed
+    model: distil-small.en
     device: cuda
     compute_type: float16
     condition_on_previous_text: true
     vad_filter: true
+    beam_size: 1        # greedy decoding — fastest, negligible quality loss at temp=0
     model_path: null
     hotwords: []        # e.g. ["whisper-writer", "PyQt5", "xdotool"]
 

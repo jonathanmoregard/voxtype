@@ -5,7 +5,7 @@
 
 ## Overview
 
-Replace whisper-writer's batch pipeline (record all → transcribe all → type all) with a three-stage streaming pipeline: record speech bursts → transcribe segments → type continuously. Recording, transcription, and typing run concurrently, giving smooth real-time output with a local Whisper model.
+Replace whisper-writer's batch pipeline (record all → transcribe all → type all) with a three-stage streaming pipeline. Recording and transcription run concurrently (transcription pre-buffers into a queue while recording is still active). Typing begins the moment recording stops, streaming smoothly from the pre-buffered queue.
 
 ---
 
@@ -43,8 +43,11 @@ Located in `src/transcriber_worker.py`.
 
 Located in `src/typer_worker.py`.
 
-- Iterates over the segment generator, calling `input_simulator.typewrite(text)` for each segment
+- Waits on a `recording_stopped` event before consuming anything from `text_q`
+- Once released, iterates over the segment generator, calling `input_simulator.typewrite(text)` for each segment
 - Emits `statusSignal('typing')` on first segment, `statusSignal('idle')` when generator is exhausted
+
+By the time `recording_stopped` fires, transcription has been running in the background and `text_q` is partially or fully pre-filled — so typing begins immediately with no perceivable delay.
 
 ---
 
@@ -61,7 +64,7 @@ def queue_to_generator(q: queue.Queue, sentinel=None):
         yield item
 ```
 
-The RecorderWorker puts bursts onto `audio_q`; the TranscriberWorker reads from `audio_q` via `queue_to_generator` and puts segment text onto `text_q`; the TyperWorker reads from `text_q` via `queue_to_generator`. On stop, a `None` sentinel cascades through both queues to shut down all downstream workers cleanly.
+The RecorderWorker puts bursts onto `audio_q` and sets a shared `recording_stopped` event when it finishes. The TranscriberWorker reads from `audio_q` via `queue_to_generator` and puts segment text onto `text_q`. The TyperWorker waits on `recording_stopped`, then drains `text_q`. On stop, a `None` sentinel cascades through both queues to shut down all downstream workers cleanly.
 
 ---
 
@@ -78,7 +81,7 @@ The RecorderWorker puts bursts onto `audio_q`; the TranscriberWorker reads from 
 ### Modified
 - `src/main.py`
   - Removes `ResultThread` import and usage
-  - `start_result_thread()` → `start_pipeline()`: creates `audio_q`, `text_q`, instantiates and starts the three workers
+  - `start_result_thread()` → `start_pipeline()`: creates `audio_q`, `text_q`, `recording_stopped` event, instantiates and starts the three workers
   - `stop_result_thread()` → `stop_pipeline()`: sets `stop_event` on RecorderWorker; sentinel cascade handles the rest
   - `on_transcription_complete()` removed — typing is now continuous, no single completion event
 - `src/transcription.py`

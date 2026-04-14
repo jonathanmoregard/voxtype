@@ -29,7 +29,7 @@ class StatusWindow(QWidget):
         painter.setRenderHint(QPainter.Antialiasing)
         painter.setBrush(QBrush(QColor(255, 255, 255, 160)))
         painter.setPen(QPen(QColor(60, 60, 60, 180), 2))
-        painter.drawRoundedRect(1, 1, self.width() - 2, self.height() - 2, 28, 28)
+        painter.drawRoundedRect(1, 1, self.width() - 2, self.height() - 2, 36, 36)
 
     def show(self):
         screen = QApplication.primaryScreen()

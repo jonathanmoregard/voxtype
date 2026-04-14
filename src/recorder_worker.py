@@ -101,4 +101,5 @@ class RecorderWorker(QThread):
 
         self._audio_q.put(SENTINEL)
         self._recording_stopped.set()
+        self.statusSignal.emit('idle')
         ConfigManager.console_print('RecorderWorker stopped.')

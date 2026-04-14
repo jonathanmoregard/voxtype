@@ -21,12 +21,20 @@ class TranscriberWorker(QThread):
 
         for burst in queue_to_generator(self._audio_q, sentinel=SENTINEL):
             try:
+                repeat_count = 0
                 for raw_text in transcribe_local_stream(
                     burst,
                     local_model=self._local_model,
                     initial_prompt=last_raw,
                     hotwords=hotwords,
                 ):
+                    if raw_text.strip() == last_raw.strip():
+                        repeat_count += 1
+                        if repeat_count >= 2:
+                            ConfigManager.console_print('Repetition loop detected, stopping burst.')
+                            break
+                        continue
+                    repeat_count = 0
                     processed = post_process_transcription(raw_text)
                     if processed:
                         self._text_q.put(processed)

@@ -9,7 +9,7 @@ model_options:
     device: cuda
     compute_type: float16
     condition_on_previous_text: true
-    vad_filter: false
+    vad_filter: true
     model_path: null
     hotwords: []        # e.g. ["whisper-writer", "PyQt5", "xdotool"]
 

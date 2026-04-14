@@ -35,6 +35,8 @@ class InputSimulator:
             self.keyboard = PynputController()
         elif self.input_method == 'dotool':
             self._initialize_dotool()
+        elif self.input_method == 'xdotool':
+            pass
 
     def _initialize_dotool(self):
         """
@@ -65,6 +67,8 @@ class InputSimulator:
             self._typewrite_ydotool(text, interval)
         elif self.input_method == 'dotool':
             self._typewrite_dotool(text, interval)
+        elif self.input_method == 'xdotool':
+            self._typewrite_xdotool(text)
 
     def _typewrite_pynput(self, text, interval):
         """
@@ -109,6 +113,9 @@ class InputSimulator:
         self.dotool_process.stdin.write(f"typedelay {interval * 1000}\n")
         self.dotool_process.stdin.write(f"type {text}\n")
         self.dotool_process.stdin.flush()
+
+    def _typewrite_xdotool(self, text):
+        subprocess.run(['xdotool', 'type', '--clearmodifiers', '--', text], check=True)
 
     def cleanup(self):
         """

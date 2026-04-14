@@ -7,8 +7,12 @@ from PyQt5.QtCore import QObject, QProcess
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QAction, QMessageBox
 
+import queue
+from threading import Event
 from key_listener import KeyListener
-from result_thread import ResultThread
+from recorder_worker import RecorderWorker
+from transcriber_worker import TranscriberWorker
+from typer_worker import TyperWorker
 from ui.main_window import MainWindow
 from ui.settings_window import SettingsWindow
 from ui.status_window import StatusWindow
@@ -52,7 +56,9 @@ class WhisperWriterApp(QObject):
         model_path = model_options.get('local', {}).get('model_path')
         self.local_model = create_local_model() if not model_options.get('use_api') else None
 
-        self.result_thread = None
+        self._recorder = None
+        self._transcriber = None
+        self._typer = None
 
         self.main_window = MainWindow()
         self.main_window.openSettings.connect(self.settings_window.show)
@@ -89,6 +95,7 @@ class WhisperWriterApp(QObject):
         self.tray_icon.show()
 
     def cleanup(self):
+        self.stop_pipeline()
         if self.key_listener:
             self.key_listener.stop()
         if self.input_simulator:
@@ -120,59 +127,50 @@ class WhisperWriterApp(QObject):
             self.initialize_components()
 
     def on_activation(self):
-        """
-        Called when the activation key combination is pressed.
-        """
-        if self.result_thread and self.result_thread.isRunning():
+        if self._recorder and self._recorder.isRunning():
             recording_mode = ConfigManager.get_config_value('recording_options', 'recording_mode')
-            if recording_mode == 'press_to_toggle':
-                self.result_thread.stop_recording()
-            elif recording_mode == 'continuous':
-                self.stop_result_thread()
+            if recording_mode in ('press_to_toggle', 'continuous'):
+                self.stop_pipeline()
             return
-
-        self.start_result_thread()
+        self.start_pipeline()
 
     def on_deactivation(self):
-        """
-        Called when the activation key combination is released.
-        """
         if ConfigManager.get_config_value('recording_options', 'recording_mode') == 'hold_to_record':
-            if self.result_thread and self.result_thread.isRunning():
-                self.result_thread.stop_recording()
+            self.stop_pipeline()
 
-    def start_result_thread(self):
-        """
-        Start the result thread to record audio and transcribe it.
-        """
-        if self.result_thread and self.result_thread.isRunning():
+    def start_pipeline(self):
+        if self._recorder and self._recorder.isRunning():
             return
 
-        self.result_thread = ResultThread(self.local_model)
+        audio_q = queue.Queue()
+        text_q = queue.Queue()
+        recording_stopped = Event()
+
+        self._recorder = RecorderWorker(audio_q, recording_stopped)
+        self._transcriber = TranscriberWorker(audio_q, text_q, self.local_model)
+        self._typer = TyperWorker(text_q, self.input_simulator, recording_stopped)
+
         if not ConfigManager.get_config_value('misc', 'hide_status_window'):
-            self.result_thread.statusSignal.connect(self.status_window.updateStatus)
-            self.status_window.closeSignal.connect(self.stop_result_thread)
-        self.result_thread.resultSignal.connect(self.on_transcription_complete)
-        self.result_thread.start()
+            self._recorder.statusSignal.connect(self.status_window.updateStatus)
+            self._typer.statusSignal.connect(self.status_window.updateStatus)
+            self.status_window.closeSignal.connect(self.stop_pipeline)
 
-    def stop_result_thread(self):
-        """
-        Stop the result thread.
-        """
-        if self.result_thread and self.result_thread.isRunning():
-            self.result_thread.stop()
+        self._typer.finished.connect(self._on_pipeline_finished)
 
-    def on_transcription_complete(self, result):
-        """
-        When the transcription is complete, type the result and start listening for the activation key again.
-        """
-        self.input_simulator.typewrite(result)
+        self._recorder.start()
+        self._transcriber.start()
+        self._typer.start()
 
+    def stop_pipeline(self):
+        if self._recorder and self._recorder.isRunning():
+            self._recorder.stop()
+
+    def _on_pipeline_finished(self):
         if ConfigManager.get_config_value('misc', 'noise_on_completion'):
             AudioPlayer(os.path.join('assets', 'beep.wav')).play(block=True)
 
         if ConfigManager.get_config_value('recording_options', 'recording_mode') == 'continuous':
-            self.start_result_thread()
+            self.start_pipeline()
         else:
             self.key_listener.start()
 

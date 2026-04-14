@@ -68,7 +68,7 @@ class InputSimulator:
         elif self.input_method == 'dotool':
             self._typewrite_dotool(text, interval)
         elif self.input_method == 'xdotool':
-            self._typewrite_xdotool(text)
+            self._typewrite_xdotool(text, interval)
 
     def _typewrite_pynput(self, text, interval):
         """
@@ -114,8 +114,9 @@ class InputSimulator:
         self.dotool_process.stdin.write(f"type {text}\n")
         self.dotool_process.stdin.flush()
 
-    def _typewrite_xdotool(self, text):
-        subprocess.run(['xdotool', 'type', '--clearmodifiers', '--', text], check=True)
+    def _typewrite_xdotool(self, text, interval):
+        delay_ms = max(1, int(interval * 1000))
+        subprocess.run(['xdotool', 'type', '--clearmodifiers', '--delay', str(delay_ms), '--', text], check=True)
 
     def cleanup(self):
         """

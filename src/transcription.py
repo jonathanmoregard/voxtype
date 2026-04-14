@@ -20,7 +20,16 @@ def create_local_model():
         device = 'cpu'
         ConfigManager.console_print('Using int8 quantization, forcing CPU usage.')
     else:
-        device = local_model_options['device']
+        configured = local_model_options.get('device')
+        if configured and configured not in ('auto', None):
+            device = configured
+        else:
+            try:
+                import torch
+                device = 'cuda' if torch.cuda.is_available() else 'cpu'
+            except ImportError:
+                device = 'cpu'
+            ConfigManager.console_print(f'Auto-detected device: {device}')
 
     try:
         if model_path:
@@ -62,6 +71,29 @@ def transcribe_local(audio_data, local_model=None):
                                       temperature=model_options['common']['temperature'],
                                       vad_filter=model_options['local']['vad_filter'],)
     return ''.join([segment.text for segment in list(response[0])])
+
+def transcribe_local_stream(audio_data, local_model=None, initial_prompt='', hotwords=None):
+    """
+    Transcribe audio using a local model, yielding segment texts as they arrive.
+    """
+    if local_model is None:
+        local_model = create_local_model()
+    model_options = ConfigManager.get_config_section('model_options')
+
+    audio_float = audio_data.astype(np.float32) / 32768.0
+
+    segments, _ = local_model.transcribe(
+        audio=audio_float,
+        language=model_options['common']['language'],
+        initial_prompt=initial_prompt,
+        condition_on_previous_text=model_options['local']['condition_on_previous_text'],
+        temperature=model_options['common']['temperature'],
+        vad_filter=model_options['local']['vad_filter'],
+        hotwords=hotwords or [],
+    )
+
+    for segment in segments:
+        yield segment.text
 
 def transcribe_api(audio_data):
     """

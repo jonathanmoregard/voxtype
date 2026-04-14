@@ -47,7 +47,7 @@ def create_local_model():
         ConfigManager.console_print('Falling back to CPU.')
         model = WhisperModel(model_path or local_model_options['model'],
                              device='cpu',
-                             compute_type=compute_type,
+                             compute_type='int8',
                              download_root=None if model_path else None)
 
     ConfigManager.console_print('Local model created.')

@@ -11,7 +11,7 @@ model_options:
     base_url: https://api.openai.com/v1
     model: gpt-4o-transcribe
   common:
-    initial_prompt: "Clean transcription without filler words."
+    initial_prompt: "Clean transcription without filler words. Swedish, English, and Swinglish mixed. Artcraft, Autodoro, Headon, Intender, Jhana, NixOS, WhisperWriter. pusha, mergea."
     language: null
     temperature: 0.0
   local:

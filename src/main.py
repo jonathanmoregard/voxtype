@@ -80,9 +80,10 @@ class WhisperWriterApp(QObject):
         settings_action.triggered.connect(self.settings_window.show)
         tray_menu.addAction(settings_action)
 
-        calibrate_action = QAction('Calibrate Pitch', self.app)
-        calibrate_action.triggered.connect(self.calibration_window.show)
-        tray_menu.addAction(calibrate_action)
+        if ConfigManager.get_config_value('misc', 'pitch_detection_enabled'):
+            calibrate_action = QAction('Calibrate Pitch', self.app)
+            calibrate_action.triggered.connect(self.calibration_window.show)
+            tray_menu.addAction(calibrate_action)
 
         exit_action = QAction('Exit', self.app)
         exit_action.triggered.connect(self.exit_app)

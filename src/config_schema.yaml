@@ -177,6 +177,10 @@ misc:
     value: false
     type: bool
     description: "Set to true to play a noise after the transcription has been typed out."
+  pitch_detection_enabled:
+    value: false
+    type: bool
+    description: "Set to true to enable real-time pitch detection, the status-window pitch indicator, and the Calibrate Pitch tray action."
   pitch_target:
     value: null
     type: float

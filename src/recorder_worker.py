@@ -7,39 +7,13 @@ from threading import Event
 from PyQt5.QtCore import QThread, pyqtSignal
 
 from pipeline import SENTINEL
+from pitch_detector import PitchDetector
 from utils import ConfigManager
 
 
 class RecorderWorker(QThread):
     statusSignal = pyqtSignal(str)
     pitchSignal = pyqtSignal(float)  # Hz, emitted during speech
-
-    def _detect_pitch(self, frame, sample_rate):
-        """Estimate fundamental frequency via autocorrelation. Returns Hz or None."""
-        audio = frame.astype(np.float32)
-        audio -= audio.mean()
-        rms = np.sqrt(np.mean(audio ** 2))
-        if rms < 200:
-            return None
-
-        corr = np.correlate(audio, audio, mode='full')
-        corr = corr[len(corr) // 2:]
-        denom = corr[0]
-        if denom == 0:
-            return None
-        corr /= denom
-
-        min_lag = int(sample_rate / 350)  # ~46 samples
-        max_lag = int(sample_rate / 70)   # ~228 samples
-        if max_lag >= len(corr):
-            return None
-
-        search = corr[min_lag:max_lag]
-        peak_idx = int(np.argmax(search))
-        if search[peak_idx] < 0.3:
-            return None
-
-        return sample_rate / (peak_idx + min_lag)
 
     def __init__(self, audio_q, recording_stopped: Event):
         super().__init__()
@@ -70,6 +44,8 @@ class RecorderWorker(QThread):
         initial_skip = int(0.15 * sample_rate / frame_size)
 
         vad = webrtcvad.Vad(2)
+        pitch_enabled = bool(ConfigManager.get_config_value('misc', 'pitch_detection_enabled'))
+        pitch_detector = PitchDetector(sample_rate=sample_rate, hop_size=frame_size) if pitch_enabled else None
         audio_buffer = deque(maxlen=frame_size)
         data_ready = Event()
 
@@ -109,11 +85,12 @@ class RecorderWorker(QThread):
                 if vad.is_speech(frame.tobytes(), sample_rate):
                     silent_frame_count = 0
                     speech_detected = True
-                    pitch = self._detect_pitch(frame, sample_rate)
-                    if pitch is not None:
-                        pitch_history.append(pitch)
-                        if len(pitch_history) >= 2:
-                            self.pitchSignal.emit(float(np.median(list(pitch_history))))
+                    if pitch_detector is not None:
+                        pitch = pitch_detector.detect(frame)
+                        if pitch is not None:
+                            pitch_history.append(pitch)
+                            if len(pitch_history) >= 2:
+                                self.pitchSignal.emit(float(np.median(list(pitch_history))))
                 else:
                     silent_frame_count += 1
 

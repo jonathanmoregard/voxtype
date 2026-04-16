@@ -4,33 +4,12 @@ from PyQt5.QtCore import Qt, QThread, pyqtSignal, pyqtSlot
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
                               QPushButton, QLabel, QProgressBar)
 
+from pitch_detector import PitchDetector
 from utils import ConfigManager
 
 RECORD_SECONDS = 3
 SAMPLE_RATE = 16000
 FRAME_SIZE = 480  # 30ms
-
-
-def _detect_pitch(frame, sample_rate):
-    audio = frame.astype(np.float32)
-    audio -= audio.mean()
-    if np.sqrt(np.mean(audio ** 2)) < 200:
-        return None
-    corr = np.correlate(audio, audio, mode='full')
-    corr = corr[len(corr) // 2:]
-    denom = corr[0]
-    if denom == 0:
-        return None
-    corr /= denom
-    min_lag = int(sample_rate / 350)
-    max_lag = int(sample_rate / 70)
-    if max_lag >= len(corr):
-        return None
-    search = corr[min_lag:max_lag]
-    peak_idx = int(np.argmax(search))
-    if search[peak_idx] < 0.3:
-        return None
-    return sample_rate / (peak_idx + min_lag)
 
 
 class PitchRecorder(QThread):
@@ -50,7 +29,8 @@ class PitchRecorder(QThread):
                 sd.sleep(int(FRAME_SIZE / SAMPLE_RATE * 1000))
                 self.progress.emit(int((i + 1) / total_frames * 100))
 
-        pitches = [p for f in frames for p in [_detect_pitch(f, SAMPLE_RATE)] if p]
+        detector = PitchDetector(sample_rate=SAMPLE_RATE, hop_size=FRAME_SIZE)
+        pitches = [p for f in frames for p in [detector.detect(f)] if p]
         self.result.emit(float(np.median(pitches)) if pitches else None)
 
 

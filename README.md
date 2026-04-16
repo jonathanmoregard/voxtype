@@ -151,6 +151,16 @@ WhisperWriter uses a configuration file to customize its behaviour. To set up th
 - `print_to_terminal`: Set to `true` to print the script status and transcribed text to the terminal. (Default: `true`)
 - `hide_status_window`: Set to `true` to hide the status window during operation. (Default: `false`)
 - `noise_on_completion`: Set to `true` to play a noise after the transcription has been typed out. (Default: `false`)
+- `pitch_detection_enabled`: Set to `true` to enable the real-time pitch indicator in the status window and the Calibrate Pitch tray action. (Default: `false`)
+- `pitch_target` / `pitch_unwanted`: Calibrated pitch anchors in Hz. Set automatically via the **Calibrate Pitch** tray action and used to color the status-window indicator.
+
+### Pitch Detection (optional)
+
+When `pitch_detection_enabled` is `true`, WhisperWriter runs a real-time pitch tracker ([aubio yinfft](https://aubio.org/)) while you speak and shows the fundamental frequency as a small indicator in the status window. This is useful if you want to monitor or train your speaking pitch (e.g. voice coaching, voice-feminization practice).
+
+The **Calibrate Pitch** tray action records three seconds each of your *target* voice and *unwanted* voice. The two anchors are stored as `pitch_target` / `pitch_unwanted` and drive the indicator color.
+
+Unvoiced phonemes (s, f, sh, t, k, …) and silence are suppressed — the indicator only updates on voiced speech.
 
 If any of the configuration options are invalid or not provided, the program will use the default values.
 

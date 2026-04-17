@@ -24,9 +24,13 @@ class RecorderWorker(QThread):
     def stop(self):
         self._stop_event.set()
 
-    def _make_burst(self, recording: list, sample_rate: int, min_duration_ms: int):
+    def _make_burst(self, recording: list, sample_rate: int, min_duration_ms: int,
+                    trim_frames: int = 0, frame_size: int = 0):
         """Convert a frame list to a numpy burst array, or None if too short."""
         audio = np.array(recording, dtype=np.int16)
+        if trim_frames > 0 and frame_size > 0:
+            trim_samples = trim_frames * frame_size
+            audio = audio[:-trim_samples] if trim_samples < len(audio) else audio[:0]
         duration_ms = (len(audio) / sample_rate) * 1000
         if duration_ms < min_duration_ms:
             return None
@@ -107,7 +111,8 @@ class RecorderWorker(QThread):
                         silent_frame_count += 1
 
                     if speech_detected and silent_frame_count > silence_frames:
-                        burst = self._make_burst(recording, sample_rate, min_duration_ms)
+                        burst = self._make_burst(recording, sample_rate, min_duration_ms,
+                                                 trim_frames=silent_frame_count, frame_size=frame_size)
                         if burst is not None:
                             duration_ms = (len(burst) / sample_rate) * 1000
                             ConfigManager.console_print(
@@ -140,7 +145,7 @@ class RecorderWorker(QThread):
             f'speech_detected={speech_detected}, '
             f'callbacks={callback_count[0]}, drains={drain_count[0]}'
         )
-        if recording:
+        if recording and speech_detected:
             burst = self._make_burst(recording, sample_rate, min_duration_ms)
             if burst is not None:
                 duration_ms = (len(burst) / sample_rate) * 1000
@@ -154,6 +159,11 @@ class RecorderWorker(QThread):
                     f'[recorder] burst DROPPED (flush, too short): '
                     f'{(len(recording) / sample_rate) * 1000:.0f}ms'
                 )
+        elif recording and not speech_detected:
+            ConfigManager.console_print(
+                f'[recorder] burst DROPPED (flush, no speech detected): '
+                f'{(len(recording) / sample_rate) * 1000:.0f}ms'
+            )
 
         self._audio_q.put(SENTINEL)
         self._recording_stopped.set()

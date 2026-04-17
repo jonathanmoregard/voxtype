@@ -20,10 +20,21 @@ class TranscriberWorker(QThread):
         initial_prompt = model_options['common'].get('initial_prompt') or ''
         last_raw = initial_prompt
 
+        burst_index = 0
         for burst in queue_to_generator(self._audio_q, sentinel=SENTINEL):
+            burst_index += 1
+            sample_rate = 16000
+            duration_ms = (len(burst) / sample_rate) * 1000
+            ConfigManager.console_print(
+                f'[transcriber] burst #{burst_index} received: {duration_ms:.0f}ms, '
+                f'samples={len(burst)}'
+            )
             try:
                 if use_api:
                     raw_text = transcribe_api(burst)
+                    ConfigManager.console_print(
+                        f'[transcriber] burst #{burst_index} api raw: {raw_text!r}'
+                    )
                     processed = post_process_transcription(raw_text)
                     if processed:
                         self._text_q.put(processed)
@@ -47,6 +58,10 @@ class TranscriberWorker(QThread):
                             self._text_q.put(processed)
                             last_raw = raw_text
             except Exception as e:
-                ConfigManager.console_print(f'Transcription error: {e}')
+                import traceback
+                ConfigManager.console_print(
+                    f'[transcriber] burst #{burst_index} FAILED: '
+                    f'{type(e).__name__}: {e}\n{traceback.format_exc()}'
+                )
 
         self._text_q.put(SENTINEL)

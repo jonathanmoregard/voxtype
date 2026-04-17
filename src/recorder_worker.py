@@ -46,13 +46,25 @@ class RecorderWorker(QThread):
         vad = webrtcvad.Vad(2)
         pitch_enabled = bool(ConfigManager.get_config_value('misc', 'pitch_detection_enabled'))
         pitch_detector = PitchDetector(sample_rate=sample_rate, hop_size=frame_size) if pitch_enabled else None
-        audio_buffer = deque(maxlen=frame_size)
+        audio_buffer = deque(maxlen=frame_size * 20)  # hold ~600ms, absorbs main-loop lag
         data_ready = Event()
+        callback_count = [0]
+        drain_count = [0]
 
         def audio_callback(indata, frames, time, status):
             if status:
                 ConfigManager.console_print(f'Audio callback status: {status}')
+            callback_count[0] += 1
+            prev_len = len(audio_buffer)
             audio_buffer.extend(indata[:, 0])
+            # deque with maxlen silently drops from the left on overflow
+            appended = len(indata[:, 0])
+            if prev_len + appended > audio_buffer.maxlen:
+                dropped = (prev_len + appended) - audio_buffer.maxlen
+                ConfigManager.console_print(
+                    f'[recorder] AUDIO BUFFER OVERFLOW: dropped {dropped} samples '
+                    f'(callbacks={callback_count[0]}, drains={drain_count[0]})'
+                )
             data_ready.set()
 
         recording = []
@@ -71,44 +83,77 @@ class RecorderWorker(QThread):
                     continue
                 data_ready.clear()
 
-                if len(audio_buffer) < frame_size:
-                    continue
+                # Drain all full frames currently queued (not just the latest one)
+                while len(audio_buffer) >= frame_size:
+                    drain_count[0] += 1
+                    frame_samples = [audio_buffer.popleft() for _ in range(frame_size)]
+                    frame = np.array(frame_samples, dtype=np.int16)
+                    recording.extend(frame)
 
-                frame = np.array(list(audio_buffer), dtype=np.int16)
-                audio_buffer.clear()
-                recording.extend(frame)
+                    if frames_to_skip > 0:
+                        frames_to_skip -= 1
+                        continue
 
-                if frames_to_skip > 0:
-                    frames_to_skip -= 1
-                    continue
+                    if vad.is_speech(frame.tobytes(), sample_rate):
+                        silent_frame_count = 0
+                        speech_detected = True
+                        if pitch_detector is not None:
+                            pitch = pitch_detector.detect(frame)
+                            if pitch is not None:
+                                pitch_history.append(pitch)
+                                if len(pitch_history) >= 2:
+                                    self.pitchSignal.emit(float(np.median(list(pitch_history))))
+                    else:
+                        silent_frame_count += 1
 
-                if vad.is_speech(frame.tobytes(), sample_rate):
-                    silent_frame_count = 0
-                    speech_detected = True
-                    if pitch_detector is not None:
-                        pitch = pitch_detector.detect(frame)
-                        if pitch is not None:
-                            pitch_history.append(pitch)
-                            if len(pitch_history) >= 2:
-                                self.pitchSignal.emit(float(np.median(list(pitch_history))))
-                else:
-                    silent_frame_count += 1
+                    if speech_detected and silent_frame_count > silence_frames:
+                        burst = self._make_burst(recording, sample_rate, min_duration_ms)
+                        if burst is not None:
+                            duration_ms = (len(burst) / sample_rate) * 1000
+                            ConfigManager.console_print(
+                                f'[recorder] burst EMIT (silence-trigger): '
+                                f'{duration_ms:.0f}ms, speech_detected=True'
+                            )
+                            self._audio_q.put(burst)
+                        else:
+                            ConfigManager.console_print(
+                                f'[recorder] burst DROPPED (silence-trigger, too short): '
+                                f'{(len(recording) / sample_rate) * 1000:.0f}ms'
+                            )
+                        # reset for next burst
+                        recording = []
+                        speech_detected = False
+                        silent_frame_count = 0
+                        frames_to_skip = initial_skip
 
-                if speech_detected and silent_frame_count > silence_frames:
-                    burst = self._make_burst(recording, sample_rate, min_duration_ms)
-                    if burst is not None:
-                        self._audio_q.put(burst)
-                    # reset for next burst
-                    recording = []
-                    speech_detected = False
-                    silent_frame_count = 0
-                    frames_to_skip = initial_skip
+        # Drain any residual samples in audio_buffer before flushing
+        if len(audio_buffer) > 0:
+            residual = np.array(list(audio_buffer), dtype=np.int16)
+            recording.extend(residual)
+            ConfigManager.console_print(
+                f'[recorder] drained {len(residual)} residual samples on stop'
+            )
 
         # Flush partial burst on stop
+        ConfigManager.console_print(
+            f'[recorder] stop: recording={len(recording)} samples, '
+            f'speech_detected={speech_detected}, '
+            f'callbacks={callback_count[0]}, drains={drain_count[0]}'
+        )
         if recording:
             burst = self._make_burst(recording, sample_rate, min_duration_ms)
             if burst is not None:
+                duration_ms = (len(burst) / sample_rate) * 1000
+                ConfigManager.console_print(
+                    f'[recorder] burst EMIT (flush-on-stop): '
+                    f'{duration_ms:.0f}ms, speech_detected={speech_detected}'
+                )
                 self._audio_q.put(burst)
+            else:
+                ConfigManager.console_print(
+                    f'[recorder] burst DROPPED (flush, too short): '
+                    f'{(len(recording) / sample_rate) * 1000:.0f}ms'
+                )
 
         self._audio_q.put(SENTINEL)
         self._recording_stopped.set()

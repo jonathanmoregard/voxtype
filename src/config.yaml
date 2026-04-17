@@ -2,8 +2,8 @@ misc:
   hide_status_window: false
   noise_on_completion: false
   pitch_detection_enabled: true
-  pitch_target: 96.96969696969697
-  pitch_unwanted: 108.10810810810811
+  pitch_target: 99.28541564941406
+  pitch_unwanted: 104.95430755615234
   print_to_terminal: true
 model_options:
   api:
@@ -11,10 +11,13 @@ model_options:
     base_url: https://api.openai.com/v1
     model: gpt-4o-transcribe
   common:
-    initial_prompt: "Today I worked on WhisperWriter and NixOS. Used Claude Code to pusha and mergea in Autodoro. The Artcraft, Headon, Intender, and Jhana configs needed updating. Oh, and by the way,"
+    initial_prompt: Today I worked on WhisperWriter and NixOS. Used Claude Code to
+      pusha and mergea in Autodoro. The Artcraft, Headon, Intender, and Jhana configs
+      needed updating. Oh, and by the way,
     language: null
     temperature: 0.0
   local:
+    beam_size: 1
     compute_type: float16
     condition_on_previous_text: true
     device: cuda

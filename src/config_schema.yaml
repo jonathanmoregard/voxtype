@@ -189,3 +189,7 @@ misc:
     value: null
     type: float
     description: "Calibrated unwanted pitch in Hz (normal/high voice). Set via pitch calibration."
+  pitch_threshold_offset:
+    value: 0.0
+    type: float
+    description: "Offset in Hz applied to the auto-computed pitch threshold. Adjust with Up/Down arrows while recording."

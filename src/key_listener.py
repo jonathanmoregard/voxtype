@@ -283,7 +283,9 @@ class KeyListener:
         self.key_chord = None
         self.callbacks = {
             "on_activate": [],
-            "on_deactivate": []
+            "on_deactivate": [],
+            "on_pitch_up": [],
+            "on_pitch_down": [],
         }
         self.load_activation_keys()
         self.initialize_backends()
@@ -389,6 +391,12 @@ class KeyListener:
             return
 
         key, event_type = event
+
+        if event_type == InputEvent.KEY_PRESS:
+            if key == KeyCode.UP:
+                self._trigger_callbacks("on_pitch_up")
+            elif key == KeyCode.DOWN:
+                self._trigger_callbacks("on_pitch_down")
 
         was_active = self.key_chord.is_active()
         is_active = self.key_chord.update(key, event_type)

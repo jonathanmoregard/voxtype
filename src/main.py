@@ -55,6 +55,8 @@ class WhisperWriterApp(QObject):
         self.key_listener = KeyListener()
         self.key_listener.add_callback("on_activate", self.on_activation)
         self.key_listener.add_callback("on_deactivate", self.on_deactivation)
+        self.key_listener.add_callback("on_pitch_up", lambda: self._on_pitch_adjust(1.0))
+        self.key_listener.add_callback("on_pitch_down", lambda: self._on_pitch_adjust(-1.0))
 
         self._recorder = None
         self._transcriber = None
@@ -98,6 +100,15 @@ class WhisperWriterApp(QObject):
     def exit_app(self):
         self.cleanup()
         QApplication.quit()
+
+    def _on_pitch_adjust(self, delta: float):
+        if not (self._recorder and self._recorder.isRunning()):
+            return
+        current = ConfigManager.get_config_value('misc', 'pitch_threshold_offset') or 0.0
+        ConfigManager.set_config_value(current + delta, 'misc', 'pitch_threshold_offset')
+        ConfigManager.save_config()
+        if hasattr(self, 'status_window'):
+            self.status_window.updateThresholdOffset()
 
     def on_activation(self):
         use_api = ConfigManager.get_config_value('model_options', 'use_api')

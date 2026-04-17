@@ -3,6 +3,7 @@ misc:
   noise_on_completion: false
   pitch_detection_enabled: true
   pitch_target: 99.28541564941406
+  pitch_threshold_offset: 0.0
   pitch_unwanted: 104.95430755615234
   print_to_terminal: true
 model_options:

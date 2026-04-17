@@ -5,7 +5,7 @@ import tempfile
 import fcntl
 from audioplayer import AudioPlayer
 from pynput.keyboard import Controller
-from PyQt5.QtCore import QObject, QProcess
+from PyQt5.QtCore import QObject, QProcess, QMetaObject, Qt
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QAction
 
@@ -108,7 +108,7 @@ class WhisperWriterApp(QObject):
         ConfigManager.set_config_value(current + delta, 'misc', 'pitch_threshold_offset')
         ConfigManager.save_config()
         if hasattr(self, 'status_window'):
-            self.status_window.updateThresholdOffset()
+            QMetaObject.invokeMethod(self.status_window, 'updateThresholdOffset', Qt.QueuedConnection)
 
     def on_activation(self):
         use_api = ConfigManager.get_config_value('model_options', 'use_api')

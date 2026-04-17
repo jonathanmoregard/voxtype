@@ -43,7 +43,13 @@ class CalibrationWindow(QWidget):
         self._recorder = None
         self._target = ConfigManager.get_config_value('misc', 'pitch_target')
         self._unwanted = ConfigManager.get_config_value('misc', 'pitch_unwanted')
+        self._offset = ConfigManager.get_config_value('misc', 'pitch_threshold_offset') or 0.0
         self._build_ui()
+
+    def show(self):
+        self._offset = ConfigManager.get_config_value('misc', 'pitch_threshold_offset') or 0.0
+        self._refresh_threshold_label()
+        super().show()
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
@@ -78,6 +84,21 @@ class CalibrationWindow(QWidget):
         self._threshold_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(self._threshold_label)
 
+        # Threshold offset adjustment
+        offset_row = QHBoxLayout()
+        down_btn = QPushButton('↓')
+        down_btn.setFixedWidth(40)
+        down_btn.clicked.connect(lambda: self._adjust_offset(-1.0))
+        self._offset_label = QLabel(self._offset_text())
+        self._offset_label.setAlignment(Qt.AlignCenter)
+        up_btn = QPushButton('↑')
+        up_btn.setFixedWidth(40)
+        up_btn.clicked.connect(lambda: self._adjust_offset(1.0))
+        offset_row.addWidget(down_btn)
+        offset_row.addWidget(self._offset_label)
+        offset_row.addWidget(up_btn)
+        layout.addLayout(offset_row)
+
         self._status = QLabel('')
         self._status.setAlignment(Qt.AlignCenter)
         layout.addWidget(self._status)
@@ -100,8 +121,24 @@ class CalibrationWindow(QWidget):
 
     def _threshold_text(self):
         if self._target is not None and self._unwanted is not None:
-            return f'Threshold: {int((self._target + self._unwanted) / 2)} Hz'
+            base = (self._target + self._unwanted) / 2
+            return f'Threshold: {base + self._offset:.0f} Hz'
         return 'Threshold: —'
+
+    def _offset_text(self):
+        sign = '+' if self._offset >= 0 else ''
+        return f'Offset: {sign}{self._offset:.0f} Hz'
+
+    def _refresh_threshold_label(self):
+        self._threshold_label.setText(self._threshold_text())
+        if hasattr(self, '_offset_label'):
+            self._offset_label.setText(self._offset_text())
+
+    def _adjust_offset(self, delta: float):
+        self._offset += delta
+        ConfigManager.set_config_value(self._offset, 'misc', 'pitch_threshold_offset')
+        ConfigManager.save_config()
+        self._refresh_threshold_label()
 
     @pyqtSlot(object)
     def _on_result(self, hz):
@@ -116,7 +153,7 @@ class CalibrationWindow(QWidget):
         else:
             self._unwanted = hz
             self._unwanted_val.setText(f'{int(hz)} Hz')
-        self._threshold_label.setText(self._threshold_text())
+        self._refresh_threshold_label()
         self._status.setText(f'Recorded: {int(hz)} Hz')
 
     def _set_buttons(self, enabled):
@@ -128,5 +165,6 @@ class CalibrationWindow(QWidget):
             ConfigManager.set_config_value(self._target, 'misc', 'pitch_target')
         if self._unwanted is not None:
             ConfigManager.set_config_value(self._unwanted, 'misc', 'pitch_unwanted')
+        ConfigManager.set_config_value(self._offset, 'misc', 'pitch_threshold_offset')
         ConfigManager.save_config()
         self._status.setText('Saved.')

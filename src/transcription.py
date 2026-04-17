@@ -129,6 +129,11 @@ def post_process_transcription(transcription):
     Apply post-processing to the transcription.
     """
     transcription = transcription.strip()
+
+    initial_prompt = (ConfigManager.get_config_section('model_options')['common'].get('initial_prompt') or '').strip()
+    if initial_prompt and transcription.lower().startswith(initial_prompt.lower()):
+        transcription = transcription[len(initial_prompt):].lstrip()
+
     post_processing = ConfigManager.get_config_section('post_processing')
     if post_processing['remove_trailing_period'] and transcription.endswith('.'):
         transcription = transcription[:-1]

@@ -32,6 +32,11 @@ class TranscriberWorker(QThread):
             try:
                 if use_api:
                     raw_text = transcribe_api(burst)
+                    if initial_prompt and raw_text.strip().lower() == initial_prompt.strip().lower():
+                        ConfigManager.console_print(
+                            f'[transcriber] burst #{burst_index} echoed prompt, retrying without prompt'
+                        )
+                        raw_text = transcribe_api(burst, prompt='')
                     ConfigManager.console_print(
                         f'[transcriber] burst #{burst_index} api raw: {raw_text!r}'
                     )
@@ -39,13 +44,25 @@ class TranscriberWorker(QThread):
                     if processed:
                         self._text_q.put(processed)
                 else:
-                    repeat_count = 0
-                    for raw_text in transcribe_local_stream(
+                    raw_segments = list(transcribe_local_stream(
                         burst,
                         local_model=self._local_model,
                         initial_prompt=last_raw,
                         hotwords=hotwords,
-                    ):
+                    ))
+                    combined = ''.join(raw_segments).strip()
+                    if initial_prompt and combined.lower() == initial_prompt.strip().lower():
+                        ConfigManager.console_print(
+                            f'[transcriber] burst #{burst_index} echoed prompt, retrying without prompt'
+                        )
+                        raw_segments = list(transcribe_local_stream(
+                            burst,
+                            local_model=self._local_model,
+                            initial_prompt='',
+                            hotwords=hotwords,
+                        ))
+                    repeat_count = 0
+                    for raw_text in raw_segments:
                         if raw_text.strip() == last_raw.strip():
                             repeat_count += 1
                             if repeat_count >= 2:

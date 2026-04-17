@@ -99,17 +99,18 @@ def transcribe_local_stream(audio_data, local_model=None, initial_prompt='', hot
     for segment in segments:
         yield segment.text
 
-def transcribe_api(audio_data):
+def transcribe_api(audio_data, prompt=None):
     """
     Transcribe an audio file using the OpenAI API.
     """
     model_options = ConfigManager.get_config_section('model_options')
+    if prompt is None:
+        prompt = model_options['common']['initial_prompt']
     client = OpenAI(
         api_key=os.getenv('OPENAI_API_KEY') or None,
         base_url=model_options['api']['base_url'] or 'https://api.openai.com/v1'
     )
 
-    # Convert numpy array to WAV file
     byte_io = io.BytesIO()
     sample_rate = ConfigManager.get_config_section('recording_options').get('sample_rate') or 16000
     sf.write(byte_io, audio_data, sample_rate, format='wav')
@@ -119,7 +120,7 @@ def transcribe_api(audio_data):
         model=model_options['api']['model'],
         file=('audio.wav', byte_io, 'audio/wav'),
         language=model_options['common']['language'],
-        prompt=model_options['common']['initial_prompt'],
+        prompt=prompt,
         temperature=model_options['common']['temperature'],
     )
     return response.text

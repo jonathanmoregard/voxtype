@@ -116,7 +116,8 @@ class InputSimulator:
 
     def _typewrite_xdotool(self, text, interval):
         delay_ms = max(1, int(interval * 1000))
-        subprocess.run(['xdotool', 'type', '--clearmodifiers', '--delay', str(delay_ms), '--', text], check=True)
+        sanitized = ''.join(c for c in text if c in ('\n', '\t') or ord(c) >= 0x20)
+        subprocess.run(['xdotool', 'type', '--clearmodifiers', '--delay', str(delay_ms), '--', sanitized], check=True)
 
     def cleanup(self):
         """

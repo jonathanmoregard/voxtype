@@ -792,10 +792,16 @@ class PynputBackend(InputBackend):
     def stop(self):
         """Stop listening for keyboard and mouse events."""
         if self.keyboard_listener:
-            self.keyboard_listener.stop()
+            try:
+                self.keyboard_listener.stop()
+            except Exception:
+                pass
             self.keyboard_listener = None
         if self.mouse_listener:
-            self.mouse_listener.stop()
+            try:
+                self.mouse_listener.stop()
+            except Exception:
+                pass
             self.mouse_listener = None
 
     def _translate_key_event(self, native_event) -> tuple[KeyCode, InputEvent]:
